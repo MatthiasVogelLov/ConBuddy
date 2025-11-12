@@ -97,7 +97,6 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
     if (hasSavedRef.current) return;
     hasSavedRef.current = true;
     
-    // Construct the final transcript including any partial, uncommitted text
     const finalTranscript = [...transcriptHistoryRef.current];
     const userText = currentInputTranscriptionRef.current.trim();
     const modelText = currentOutputTranscriptionRef.current.trim();
@@ -108,31 +107,21 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
         finalTranscript.push({ author: 'model', text: modelText });
     }
     
-    // Call save without awaiting it. It will run in the background.
     onSaveSessionRef.current(finalTranscript);
     
-    // Immediately navigate back.
     onEndSessionRef.current();
   }, []);
 
 
-  const connectToLiveSession = useCallback(async () => {
-    setStatus('connecting');
+  const connectToLiveSession = useCallback(async (mediaStream: MediaStream) => {
     setTranscriptHistory([]);
     hasSavedRef.current = false;
+    mediaStreamRef.current = mediaStream;
     
     // @ts-ignore
     inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
-
-    try {
-        mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (error) {
-        console.error("Mikrofonzugriff verweigert:", error);
-        setStatus('error');
-        return;
-    }
     
     const combinedSystemInstruction = `${topic.systemInstruction} ${CEFR_PROMPTS[cefrLevel]}`;
 
@@ -256,45 +245,52 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
     }
   }, [transcriptHistory, currentTranscription]);
 
-  const handleStartConversation = () => {
-    // Erstellen und Entsperren des AudioContext bei Benutzergeste. Dies ist entscheidend für mobile Browser.
-    if (!outputAudioContextRef.current) {
-        try {
-            // @ts-ignore
-            outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-        } catch (e) {
-            console.error("Fehler beim Erstellen des AudioContext:", e);
-            setStatus('error');
-            return;
-        }
+  const handleStartConversation = async () => {
+    setStatus('connecting');
+
+    let mediaStream: MediaStream;
+    try {
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (error) {
+      console.error("Mikrofonzugriff verweigert:", error);
+      setStatus('error');
+      return;
     }
-    
+
+    if (!outputAudioContextRef.current) {
+      try {
+        // @ts-ignore
+        outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      } catch (e) {
+        console.error("Fehler beim Erstellen des AudioContext:", e);
+        setStatus('error');
+        return;
+      }
+    }
+
     const startSession = () => {
-        // Spielen Sie einen stillen Ton ab, um den Audio-Kontext in allen Browsern vollständig freizuschalten.
-        // Dies ist ein gängiger Workaround für Einschränkungen bei mobilen Browsern.
-        const audioCtx = outputAudioContextRef.current!;
-        const buffer = audioCtx.createBuffer(1, 1, 22050);
-        const source = audioCtx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(audioCtx.destination);
-        source.start(0);
-        
-        // Nachdem das Audio freigeschaltet ist, verbinden Sie sich mit der Sitzung.
-        connectToLiveSession();
+      const audioCtx = outputAudioContextRef.current!;
+      const buffer = audioCtx.createBuffer(1, 1, 22050);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+      source.start(0);
+
+      connectToLiveSession(mediaStream);
     };
 
-    // Der AudioContext befindet sich möglicherweise in einem schwebenden Zustand und muss durch eine Benutzergeste fortgesetzt werden.
     if (outputAudioContextRef.current.state === 'suspended') {
       outputAudioContextRef.current.resume()
         .then(startSession)
         .catch(err => {
-            console.error("Fehler beim Fortsetzen des AudioContext:", err);
-            setStatus('error');
+          console.error("Fehler beim Fortsetzen des AudioContext:", err);
+          setStatus('error');
         });
     } else {
-        startSession();
+      startSession();
     }
   };
+
 
   const handleRepeat = async () => {
     if (!lastModelAudio || !outputAudioContextRef.current) return;
