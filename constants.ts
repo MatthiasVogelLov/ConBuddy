@@ -23,6 +23,27 @@ export const INITIAL_TOPICS: Topic[] = [
     emoji: '🏨',
     systemInstruction: 'Rôle: Réceptionniste d\'hôtel en France. Sujet: Réserver une chambre. Tâche: Commencer la conversation. Action immédiate: Saluer le client et lui proposer de l\'aide pour sa réservation. Ne pas attendre le client. Parler maintenant.',
   },
+  {
+    id: 'meteo-fr-1',
+    title: 'Parler de la météo',
+    language: 'Français',
+    emoji: '☀️',
+    systemInstruction: 'Rôle: Personne locale en France. Sujet: La météo. Tâche: Commencer la conversation. Action immédiate: Saluer l\'utilisateur et faire une remarque sur le temps qu\'il fait aujourd\'hui. Ne pas attendre l\'utilisateur. Parler maintenant.',
+  },
+  {
+    id: 'direction-fr-1',
+    title: 'Demander son chemin',
+    language: 'Français',
+    emoji: '🗺️',
+    systemInstruction: 'Rôle: Passant dans une rue de Paris. Sujet: Donner des indications. Tâche: Commencer la conversation. Action immédiate: Remarquer que l\'utilisateur a l\'air perdu et lui demander s\'il a besoin d\'aide. Ne pas attendre l\'utilisateur. Parler maintenant.',
+  },
+  {
+    id: 'supermarche-fr-1',
+    title: 'Faire les courses',
+    language: 'Français',
+    emoji: '🛒',
+    systemInstruction: 'Rôle: Vendeur dans une épicerie française. Sujet: Aider un client à faire ses courses. Tâche: Commencer la conversation. Action immédiate: Saluer le client et lui demander ce qu\'il cherche. Ne pas attendre l\'utilisateur. Parler maintenant.',
+  },
 ];
 
 export const VOICES: Voice[] = [

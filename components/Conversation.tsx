@@ -8,15 +8,16 @@ import { CEFR_PROMPTS } from '../constants';
 interface ConversationProps {
   topic: Topic;
   onEndSession: () => void;
-  onSaveSession: (transcript: TranscriptEntry[]) => Promise<void>;
+  onSaveSession: (transcript: TranscriptEntry[]) => void;
   voiceName: string;
   duration: number; // in minutes
   cefrLevel: keyof typeof CEFR_PROMPTS;
+  lang: 'de' | 'fr';
 }
 
 type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
-const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSaveSession, voiceName, duration, cefrLevel }) => {
+const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSaveSession, voiceName, duration, cefrLevel, lang }) => {
   const [status, setStatus] = useState<Status>('idle');
   const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntry[]>([]);
   const [currentTranscription, setCurrentTranscription] = useState({ user: '', model: '' });
@@ -241,7 +242,11 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
   
    useEffect(() => {
     if (transcriptContainerRef.current) {
-      transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+      setTimeout(() => {
+        if (transcriptContainerRef.current) {
+          transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+        }
+      }, 0);
     }
   }, [transcriptHistory, currentTranscription]);
 
@@ -319,11 +324,11 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
             return (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                     <div className="text-6xl mb-4">{topic.emoji}</div>
-                    <p className="text-gray-600 mb-8">Bereit, das Gespräch zu beginnen?</p>
+                    <p className="text-gray-600 mb-8">{lang === 'de' ? 'Bereit, das Gespräch zu beginnen?' : 'Prêt(e) à commencer la conversation ?'}</p>
                     <button
                         onClick={handleStartConversation}
                         className="w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 bg-teal-500 hover:bg-teal-600 focus:ring-teal-400"
-                        aria-label="Gespräch beginnen"
+                        aria-label={lang === 'de' ? 'Gespräch beginnen' : 'Commencer la conversation'}
                     >
                         <MicrophoneIcon />
                     </button>
@@ -333,23 +338,25 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
             return (
                 <div className="flex flex-col items-center justify-center h-full">
                     <LoadingSpinnerIcon className="w-12 h-12 text-teal-500" />
-                    <p className="text-gray-500 mt-4">Verbindung wird hergestellt...</p>
+                    <p className="text-gray-500 mt-4">{lang === 'de' ? 'Verbindung wird hergestellt...' : 'Connexion en cours...'}</p>
                 </div>
             );
         case 'error':
             return (
                  <div className="flex flex-col items-center justify-center h-full text-center">
-                    <h3 className="text-xl font-semibold text-red-500 mb-2">Verbindungsfehler</h3>
+                    <h3 className="text-xl font-semibold text-red-500 mb-2">{lang === 'de' ? 'Verbindungsfehler' : 'Erreur de connexion'}</h3>
                     <p className="text-gray-600 mb-6">
-                        Es konnte keine Verbindung hergestellt werden. <br/>
-                        Bitte stellen Sie sicher, dass Sie den Mikrofonzugriff erlaubt haben.
+                        {lang === 'de' 
+                            ? 'Es konnte keine Verbindung hergestellt werden. Bitte stellen Sie sicher, dass Sie den Mikrofonzugriff erlaubt haben.' 
+                            : 'La connexion n\'a pas pu être établie. Veuillez vous assurer que vous avez autorisé l\'accès au microphone.'
+                        }
                     </p>
                     <div className="flex space-x-4">
                        <button onClick={onEndSession} className="px-4 py-2 rounded-lg bg-gray-200 hover:bg-gray-300">
-                           Zurück
+                           {lang === 'de' ? 'Zurück' : 'Retour'}
                        </button>
                        <button onClick={handleRetry} className="px-4 py-2 rounded-lg bg-teal-500 text-white hover:bg-teal-600">
-                           Erneut versuchen
+                           {lang === 'de' ? 'Erneut versuchen' : 'Réessayer'}
                        </button>
                     </div>
                 </div>

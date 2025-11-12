@@ -34,4 +34,10 @@ export interface ConversationSession {
     transcript: TranscriptEntry[];
     feedback?: string;
     vocabulary?: VocabularyEntry[];
+    status?: 'analyzing' | 'complete';
+}
+
+export interface User {
+  email: string;
+  password?: string;
 }
