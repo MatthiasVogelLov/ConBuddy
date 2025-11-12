@@ -123,14 +123,6 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
     
     // @ts-ignore
     inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
-    // @ts-ignore
-    outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-    
-    // On many browsers, the AudioContext starts in a "suspended" state
-    // and must be resumed by a user gesture. The "start" button click is that gesture.
-    if (outputAudioContextRef.current.state === 'suspended') {
-      outputAudioContextRef.current.resume();
-    }
     
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
@@ -265,7 +257,43 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
   }, [transcriptHistory, currentTranscription]);
 
   const handleStartConversation = () => {
-    connectToLiveSession();
+    // Erstellen und Entsperren des AudioContext bei Benutzergeste. Dies ist entscheidend für mobile Browser.
+    if (!outputAudioContextRef.current) {
+        try {
+            // @ts-ignore
+            outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        } catch (e) {
+            console.error("Fehler beim Erstellen des AudioContext:", e);
+            setStatus('error');
+            return;
+        }
+    }
+    
+    const startSession = () => {
+        // Spielen Sie einen stillen Ton ab, um den Audio-Kontext in allen Browsern vollständig freizuschalten.
+        // Dies ist ein gängiger Workaround für Einschränkungen bei mobilen Browsern.
+        const audioCtx = outputAudioContextRef.current!;
+        const buffer = audioCtx.createBuffer(1, 1, 22050);
+        const source = audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(audioCtx.destination);
+        source.start(0);
+        
+        // Nachdem das Audio freigeschaltet ist, verbinden Sie sich mit der Sitzung.
+        connectToLiveSession();
+    };
+
+    // Der AudioContext befindet sich möglicherweise in einem schwebenden Zustand und muss durch eine Benutzergeste fortgesetzt werden.
+    if (outputAudioContextRef.current.state === 'suspended') {
+      outputAudioContextRef.current.resume()
+        .then(startSession)
+        .catch(err => {
+            console.error("Fehler beim Fortsetzen des AudioContext:", err);
+            setStatus('error');
+        });
+    } else {
+        startSession();
+    }
   };
 
   const handleRepeat = async () => {
