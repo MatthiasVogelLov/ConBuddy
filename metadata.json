@@ -1,0 +1,7 @@
+{
+  "name": "ConversationBuddy",
+  "description": "Eine App, um in Echtzeit Gespräche in einer Fremdsprache zu führen. Wählen Sie ein Thema und beginnen Sie zu sprechen, um Ihre Sprachkenntnisse mit einem KI-Partner zu üben.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
