@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
-import type { Topic, AppSettings, ConversationSession, TranscriptEntry, VocabularyEntry } from './types';
+import type { Topic, AppSettings, ConversationSession, VocabularyEntry } from './types';
 import TopicSelection from './components/TopicSelection';
 import Conversation from './components/Conversation';
 import { INITIAL_TOPICS, VOICES, CEFR_LEVELS, CEFR_PROMPTS } from './constants';
-import { BackIcon, TrashIcon, PlusIcon, PlayIcon, LoadingSpinnerIcon, DocumentTextIcon, SettingsIcon } from './components/icons/Icons';
+import { BackIcon, TrashIcon, PlusIcon, PlayIcon, LoadingSpinnerIcon, DocumentTextIcon, SettingsIcon, ShareIcon } from './components/icons/Icons';
 import { decode, decodeAudioData } from './services/audioUtils';
+import type { TranscriptEntry } from './types';
 
 // --- About Component ---
 const About: React.FC<{onBack: () => void}> = ({ onBack }) => (
@@ -301,8 +302,10 @@ const ConversationHistory: React.FC<ConversationHistoryProps> = ({ history, onSe
 interface HistoryDetailProps {
     session: ConversationSession;
     onBack: () => void;
+    onPlayVocabWord: (word: string) => void;
+    playingVocabWord: string | null;
 }
-const HistoryDetail: React.FC<HistoryDetailProps> = ({ session, onBack }) => (
+const HistoryDetail: React.FC<HistoryDetailProps> = ({ session, onBack, onPlayVocabWord, playingVocabWord }) => (
      <div className="w-full max-w-2xl h-full flex flex-col bg-white rounded-lg shadow-lg p-4">
         <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
             <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 transition-colors">
@@ -329,7 +332,13 @@ const HistoryDetail: React.FC<HistoryDetailProps> = ({ session, onBack }) => (
             {session.feedback && (
                 <div>
                     <h3 className="text-lg font-semibold my-4 border-t pt-4 border-gray-200 text-teal-600">Feedback & Korrekturen</h3>
-                    <div className="prose prose-sm bg-gray-100 p-3 rounded-lg whitespace-pre-wrap">{session.feedback}</div>
+                    <div className="space-y-3">
+                        {session.feedback.split('\n').filter(line => line.trim().length > 1).map((line, index) => (
+                            <div key={index} className="bg-gray-100 p-3 rounded-lg border-l-4 border-teal-500">
+                                <p className="text-gray-700">{line.replace(/^[\s*-]+/, '').trim()}</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
             
@@ -339,8 +348,18 @@ const HistoryDetail: React.FC<HistoryDetailProps> = ({ session, onBack }) => (
                     <ul className="space-y-2">
                         {session.vocabulary.map((item, index) => (
                             <li key={index} className="flex justify-between items-center bg-gray-100 p-3 rounded-lg">
-                                <span className="font-semibold">{item.word}</span>
-                                <span className="text-gray-500">{item.translation}</span>
+                                <div>
+                                    <span className="font-semibold">{item.word}</span>
+                                    <span className="text-gray-500 ml-4">{item.translation}</span>
+                                </div>
+                                <button
+                                    onClick={() => onPlayVocabWord(item.word)}
+                                    disabled={!!playingVocabWord}
+                                    className="p-2 rounded-full hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    aria-label={`Wort "${item.word}" vorlesen`}
+                                >
+                                    {playingVocabWord === item.word ? <LoadingSpinnerIcon className="w-5 h-5" /> : <PlayIcon />}
+                                </button>
                             </li>
                         ))}
                     </ul>
@@ -367,7 +386,8 @@ const App: React.FC = () => {
     return savedHistory ? JSON.parse(savedHistory) : [];
   });
    const [preloadedAudios, setPreloadedAudios] = useState<Record<string, AudioBuffer | null>>({});
-  const [settings, setSettings] = useState<AppSettings>(() => {
+   const [playingVocabWord, setPlayingVocabWord] = useState<string | null>(null);
+   const [settings, setSettings] = useState<AppSettings>(() => {
     const savedSettings = localStorage.getItem('settings');
     const defaultSettings: AppSettings = {
         voiceId: 'Zephyr',
@@ -472,6 +492,69 @@ const App: React.FC = () => {
         setConversationHistory([]);
     }
   };
+  
+  const handlePlayVocabWord = async (word: string) => {
+    if (playingVocabWord) return;
+    setPlayingVocabWord(word);
+    try {
+        // @ts-ignore
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash-preview-tts",
+            contents: [{ parts: [{ text: word }] }],
+            config: {
+                responseModalities: [Modality.AUDIO],
+                speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: settings.voiceId } } },
+            },
+        });
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+            const audioBuffer = await decodeAudioData(decode(base64Audio), audioCtx, 24000, 1);
+            const source = audioCtx.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioCtx.destination);
+            source.onended = () => {
+                setPlayingVocabWord(null);
+                audioCtx.close().catch(console.error);
+            };
+            source.start();
+        } else {
+            throw new Error("Keine Audiodaten empfangen");
+        }
+    } catch (error) {
+        console.error(`Fehler beim Abspielen des Wortes "${word}":`, error);
+        alert("Audio konnte nicht abgespielt werden.");
+        setPlayingVocabWord(null);
+    }
+  };
+  
+  const handleShare = () => {
+    const shareData = {
+      title: 'ConversationBuddy',
+      text: 'Ich lerne Französisch mit dieser coolen KI-App. Probier sie auch mal aus!',
+      url: window.location.href,
+    };
+
+    // The Web Share API is preferred, but mainly available on mobile.
+    if (navigator.share) {
+      navigator.share(shareData).catch((error) => {
+        // AbortError is triggered when the user closes the share dialog, which is not an actual error.
+        if (error.name !== 'AbortError') {
+          console.error('Web Share API failed:', error);
+          // As a fallback for other errors, try to copy to clipboard.
+          navigator.clipboard.writeText(shareData.url)
+            .then(() => alert('Teilen war nicht möglich. Der Link wurde stattdessen in die Zwischenablage kopiert.'))
+            .catch(() => alert('Teilen war nicht möglich. Bitte kopieren Sie den Link manuell.'));
+        }
+      });
+    } else {
+      // Fallback for desktop browsers: copy to clipboard.
+      navigator.clipboard.writeText(shareData.url)
+        .then(() => alert('Link in die Zwischenablage kopiert!'))
+        .catch(() => alert('Link konnte nicht kopiert werden. Bitte kopieren Sie den Link manuell.'));
+    }
+  };
 
   const renderContent = () => {
     switch (view) {
@@ -510,7 +593,7 @@ const App: React.FC = () => {
       case 'history':
         return <ConversationHistory history={conversationHistory} onSelectSession={(s) => {setSelectedSession(s); setView('historyDetail');}} onBack={() => setView('topics')} onClearHistory={handleClearHistory} />;
       case 'historyDetail':
-        return <HistoryDetail session={selectedSession!} onBack={() => setView('history')} />;
+        return <HistoryDetail session={selectedSession!} onBack={() => setView('history')} onPlayVocabWord={handlePlayVocabWord} playingVocabWord={playingVocabWord} />;
       case 'about':
         return <About onBack={() => setView('settings')} />;
       case 'topics':
@@ -526,9 +609,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen font-sans flex flex-col">
-      <header className="p-4 bg-white shadow-sm border-b border-gray-200 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-center text-teal-600"></h1>
-      </header>
       <main className="flex-grow flex flex-col items-center justify-center p-4 w-full">
         {renderContent()}
       </main>
@@ -537,6 +617,10 @@ const App: React.FC = () => {
             <button onClick={() => setView('history')} className="flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 w-24">
                 <DocumentTextIcon />
                 <span className="text-xs mt-1">Verlauf</span>
+            </button>
+             <button onClick={handleShare} className="flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 w-24">
+                <ShareIcon />
+                <span className="text-xs mt-1">Freunden erzählen</span>
             </button>
             <button onClick={() => setView('settings')} className="flex flex-col items-center p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 w-24">
                 <SettingsIcon />

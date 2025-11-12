@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import type { Topic, TranscriptEntry } from '../types';
 import { encode, decode, decodeAudioData } from '../services/audioUtils';
-import { StopIcon, BackIcon, LoadingSpinnerIcon, RepeatIcon } from './icons/Icons';
+import { StopIcon, BackIcon, LoadingSpinnerIcon, RepeatIcon, MicrophoneIcon } from './icons/Icons';
 import { CEFR_PROMPTS } from '../constants';
 
 interface ConversationProps {
@@ -14,10 +14,10 @@ interface ConversationProps {
   cefrLevel: keyof typeof CEFR_PROMPTS;
 }
 
-type Status = 'connecting' | 'connected' | 'error';
+type Status = 'idle' | 'connecting' | 'connected' | 'error';
 
 const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSaveSession, voiceName, duration, cefrLevel }) => {
-  const [status, setStatus] = useState<Status>('connecting');
+  const [status, setStatus] = useState<Status>('idle');
   const [transcriptHistory, setTranscriptHistory] = useState<TranscriptEntry[]>([]);
   const [currentTranscription, setCurrentTranscription] = useState({ user: '', model: '' });
   const [timeLeft, setTimeLeft] = useState<number | null>(duration > 0 ? duration * 60 : null);
@@ -43,6 +43,7 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
   const scriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const timerIntervalRef = useRef<number | null>(null);
+  const transcriptContainerRef = useRef<HTMLDivElement | null>(null);
   
   const currentInputTranscriptionRef = useRef('');
   const currentOutputTranscriptionRef = useRef('');
@@ -124,6 +125,12 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
     inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     // @ts-ignore
     outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+    
+    // On many browsers, the AudioContext starts in a "suspended" state
+    // and must be resumed by a user gesture. The "start" button click is that gesture.
+    if (outputAudioContextRef.current.state === 'suspended') {
+      outputAudioContextRef.current.resume();
+    }
     
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
@@ -243,15 +250,24 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
         },
       }
     });
-  }, [topic.systemInstruction, topic.title, voiceName, duration, cefrLevel, handleEndAndSave, cleanup, stopAllAudio]);
+  }, [topic.systemInstruction, voiceName, duration, cefrLevel, handleEndAndSave, cleanup, stopAllAudio]);
 
   useEffect(() => {
-    connectToLiveSession();
     return () => {
       cleanup();
     };
-  }, [connectToLiveSession, cleanup]);
+  }, [cleanup]);
   
+   useEffect(() => {
+    if (transcriptContainerRef.current) {
+      transcriptContainerRef.current.scrollTop = transcriptContainerRef.current.scrollHeight;
+    }
+  }, [transcriptHistory, currentTranscription]);
+
+  const handleStartConversation = () => {
+    connectToLiveSession();
+  };
+
   const handleRepeat = async () => {
     if (!lastModelAudio || !outputAudioContextRef.current) return;
     const audioCtx = outputAudioContextRef.current;
@@ -264,7 +280,7 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
   
   const handleRetry = () => {
     cleanup();
-    setTimeout(() => connectToLiveSession(), 100);
+    setStatus('idle');
   };
 
   const formatTime = (seconds: number) => {
@@ -275,6 +291,20 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
 
   const renderContent = () => {
     switch (status) {
+        case 'idle':
+            return (
+                <div className="flex flex-col items-center justify-center h-full text-center">
+                    <div className="text-6xl mb-4">{topic.emoji}</div>
+                    <p className="text-gray-600 mb-8">Bereit, das Gespräch zu beginnen?</p>
+                    <button
+                        onClick={handleStartConversation}
+                        className="w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out focus:outline-none focus:ring-4 bg-teal-500 hover:bg-teal-600 focus:ring-teal-400"
+                        aria-label="Gespräch beginnen"
+                    >
+                        <MicrophoneIcon />
+                    </button>
+                </div>
+            );
         case 'connecting':
             return (
                 <div className="flex flex-col items-center justify-center h-full">
@@ -303,7 +333,7 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
         case 'connected':
              return (
                  <>
-                    <div id="transcript" className="flex-grow overflow-y-auto mb-4 p-2 space-y-4">
+                    <div ref={transcriptContainerRef} id="transcript" className="flex-grow overflow-y-auto mb-4 p-2 space-y-4">
                         {transcriptHistory.map((entry, index) => (
                         <div key={index} className={`flex ${entry.author === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${entry.author === 'user' ? 'bg-teal-500 text-white rounded-br-none' : 'bg-gray-200 text-gray-800 rounded-bl-none'}`}>
