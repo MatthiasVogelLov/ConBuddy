@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality, Type } from '@google/genai';
 import type { Topic, AppSettings, ConversationSession, VocabularyEntry, User } from './types';
@@ -99,7 +100,6 @@ const About: React.FC<{onBack: () => void, lang: 'de' | 'fr'}> = ({ onBack, lang
 interface SettingsProps {
   settings: AppSettings;
   onSettingsChange: (settings: AppSettings) => void;
-  onGoToAdmin: () => void;
   onGoToAbout: () => void;
   onBack: () => void;
   onLogout: () => void;
@@ -107,9 +107,10 @@ interface SettingsProps {
   onUpdatePreloadedAudios: (audios: Record<string, AudioBuffer | null>) => void;
   lang: 'de' | 'fr';
   currentUser: User | null;
+  onGoToAuth: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToAdmin, onGoToAbout, onBack, onLogout, preloadedAudios, onUpdatePreloadedAudios, lang, currentUser }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToAbout, onBack, onLogout, preloadedAudios, onUpdatePreloadedAudios, lang, currentUser, onGoToAuth }) => {
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -206,10 +207,12 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToA
         <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 transition-colors mr-4">
           <BackIcon />
         </button>
-        <h2 className="text-2xl font-bold">{lang === 'de' ? 'Einstellungen' : 'Profil & Réglages'}</h2>
+        <h2 className="text-2xl font-bold">{lang === 'de' ? 'Profil & Einstellungen' : 'Profil & Réglages'}</h2>
       </div>
-
-       {currentUser && <p className="text-center text-gray-500 mb-6">{lang === 'de' ? 'Angemeldet als' : 'Connecté en tant que'} {currentUser.email}</p>}
+      
+        {currentUser && (
+            <p className="text-center text-gray-500 mb-6">{lang === 'de' ? 'Angemeldet als' : 'Connecté en tant que'} {currentUser.email}</p>
+        )}
 
       <div className="space-y-6">
         <div>
@@ -256,6 +259,20 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToA
             </select>
         </div>
         
+        <div>
+            <h3 className="text-lg font-semibold mb-2">
+                {lang === 'de' ? 'Gesprächsdauer' : 'Durée de la conversation'}
+            </h3>
+            <select
+                value={settings.duration}
+                onChange={(e) => onSettingsChange({ ...settings, duration: Number(e.target.value) })}
+                className="w-full p-3 bg-gray-100 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+                <option value={2}>2 {lang === 'de' ? 'Minuten' : 'minutes'}</option>
+                <option value={3}>3 {lang === 'de' ? 'Minuten' : 'minutes'}</option>
+            </select>
+        </div>
+
          <button onClick={handleShare} className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
             <ShareIcon /> {lang === 'de' ? 'Freunden erzählen' : 'Partager à un ami'}
         </button>
@@ -283,9 +300,11 @@ interface HistoryProps {
     onBack: () => void;
     lang: 'de' | 'fr';
     onPlayVocabulary: (word: string) => void;
+    currentUser: User | null;
+    onGoToAuth: () => void;
 }
 
-const History: React.FC<HistoryProps> = ({ sessions, onSelectSession, onDeleteSession, onBack, lang, onPlayVocabulary }) => {
+const History: React.FC<HistoryProps> = ({ sessions, onSelectSession, onDeleteSession, onBack, lang, onPlayVocabulary, currentUser, onGoToAuth }) => {
     return (
         <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6 animate-fade-in">
             <div className="flex items-center mb-6">
@@ -294,6 +313,17 @@ const History: React.FC<HistoryProps> = ({ sessions, onSelectSession, onDeleteSe
                 </button>
                 <h2 className="text-2xl font-bold">{lang === 'de' ? 'Verlauf' : 'Historique'}</h2>
             </div>
+
+            {!currentUser && (
+                 <div className="text-center p-4 mb-6 bg-teal-50 border border-teal-200 rounded-lg">
+                    <h3 className="font-semibold text-teal-800">{lang === 'de' ? 'Konto anlegen, um Verlauf zu speichern' : 'Créez un compte pour sauvegarder l\'historique'}</h3>
+                    <p className="text-sm text-teal-700 my-2">{lang === 'de' ? 'Speichern Sie Ihren Fortschritt und greifen Sie von jedem Gerät aus darauf zu.' : 'Sauvegardez vos progrès et accédez-y depuis n\'importe quel appareil.'}</p>
+                    <button onClick={onGoToAuth} className="bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
+                        {lang === 'de' ? 'Anmelden / Registrieren' : 'Se connecter / S\'inscrire'}
+                    </button>
+                </div>
+            )}
+            
             {sessions.length === 0 ? (
                 <p className="text-gray-500 text-center">{lang === 'de' ? 'Noch keine Gespräche geführt.' : 'Aucune conversation pour le moment.'}</p>
             ) : (
@@ -379,7 +409,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate, lang }) 
         </button>
         <button 
             onClick={() => onNavigate('profile')} 
-            className={`flex flex-col items-center justify-center w-full p-2 rounded-lg transition-colors ${currentView === 'profile' || currentView === 'settings' ? 'text-teal-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`flex flex-col items-center justify-center w-full p-2 rounded-lg transition-colors ${['profile', 'auth', 'about'].includes(currentView) ? 'text-teal-600' : 'text-gray-500 hover:bg-gray-100'}`}
         >
             <UserIcon />
             <span className="text-xs mt-1">{lang === 'de' ? 'Profil' : 'Profil'}</span>
@@ -388,21 +418,37 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate, lang }) 
 );
 
 // --- Main App Component ---
+type View = 'topics' | 'conversation' | 'history' | 'profile' | 'about' | 'auth';
+
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
-    const [currentView, setCurrentView] = useState<'topics' | 'conversation' | 'history' | 'settings' | 'about' | 'profile' | 'admin'>('topics');
+    const [isLoading, setIsLoading] = useState(true);
+    const [currentView, setCurrentView] = useState<View>('topics');
     const [topics, setTopics] = useState<Topic[]>(INITIAL_TOPICS);
     const [sessions, setSessions] = useState<ConversationSession[]>([]);
     const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
     const [selectedSession, setSelectedSession] = useState<ConversationSession | null>(null);
     const [settings, setSettings] = useState<AppSettings>({
         voiceId: 'Zephyr',
-        duration: 0,
-        cefrLevel: 'B1',
+        duration: 2,
+        cefrLevel: 'A2',
     });
     const [preloadedAudios, setPreloadedAudios] = useState<Record<string, AudioBuffer | null>>({});
     
     const lang = settings.cefrLevel === 'A1' ? 'de' : 'fr';
+
+    // Check for logged in user on initial load
+    useEffect(() => {
+        const loggedInUserEmail = localStorage.getItem('loggedInUser');
+        if (loggedInUserEmail) {
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            const foundUser = users.find((u: User) => u.email === loggedInUserEmail);
+            if (foundUser) {
+                setCurrentUser(foundUser);
+            }
+        }
+        setIsLoading(false);
+    }, []);
 
     const getStorageKey = useCallback((key: string) => {
         return currentUser ? `${currentUser.email}_${key}` : `guest_${key}`;
@@ -410,6 +456,7 @@ const App: React.FC = () => {
 
     // Load data on user change
     useEffect(() => {
+        if (isLoading) return; // Wait until initial user check is complete
         const storedTopics = localStorage.getItem(getStorageKey('topics'));
         if (storedTopics) {
             setTopics(JSON.parse(storedTopics));
@@ -428,22 +475,25 @@ const App: React.FC = () => {
         if (storedSettings) {
             setSettings(JSON.parse(storedSettings));
         } else {
-            setSettings({ voiceId: 'Zephyr', duration: 0, cefrLevel: 'B1' });
+            setSettings({ voiceId: 'Zephyr', duration: 2, cefrLevel: 'A2' });
         }
-    }, [currentUser, getStorageKey]);
+    }, [currentUser, getStorageKey, isLoading]);
 
     // Save data on change
     useEffect(() => {
+        if (isLoading) return;
         localStorage.setItem(getStorageKey('topics'), JSON.stringify(topics));
-    }, [topics, getStorageKey]);
+    }, [topics, getStorageKey, isLoading]);
 
     useEffect(() => {
+        if (isLoading) return;
         localStorage.setItem(getStorageKey('sessions'), JSON.stringify(sessions));
-    }, [sessions, getStorageKey]);
+    }, [sessions, getStorageKey, isLoading]);
 
     useEffect(() => {
+        if (isLoading) return;
         localStorage.setItem(getStorageKey('settings'), JSON.stringify(settings));
-    }, [settings, getStorageKey]);
+    }, [settings, getStorageKey, isLoading]);
 
      useEffect(() => {
         document.documentElement.lang = lang;
@@ -549,7 +599,6 @@ const App: React.FC = () => {
         const users = JSON.parse(localStorage.getItem('users') || '[]');
         const foundUser = users.find((u: User) => u.email === user.email && u.password === user.password);
         if (foundUser) {
-            // Migrate guest data
             const guestTopics = localStorage.getItem('guest_topics');
             const guestSessions = localStorage.getItem('guest_sessions');
             const guestSettings = localStorage.getItem('guest_settings');
@@ -566,16 +615,17 @@ const App: React.FC = () => {
                 localStorage.setItem(userKey(user.email) + 'settings', guestSettings);
             }
 
+            localStorage.setItem('loggedInUser', foundUser.email);
             setCurrentUser(foundUser);
-            setCurrentView('topics');
+            setCurrentView('profile');
         } else {
              alert(lang === 'de' ? 'Ungültige Anmeldedaten.' : 'Identifiants invalides.');
         }
     };
     
     const handleLogout = () => {
+        localStorage.removeItem('loggedInUser');
         setCurrentUser(null);
-        // data will now be loaded for 'guest' automatically by useEffect
         setCurrentView('topics');
     };
 
@@ -599,35 +649,33 @@ const App: React.FC = () => {
                     onBack={() => setCurrentView('topics')}
                     lang={lang}
                     onPlayVocabulary={handlePlayVocabulary}
+                    currentUser={currentUser}
+                    onGoToAuth={() => setCurrentView('auth')}
                 />;
              case 'profile':
-                return currentUser 
-                    ? <Settings 
-                        settings={settings} 
-                        onSettingsChange={setSettings}
-                        onGoToAdmin={() => setCurrentView('admin')}
-                        onGoToAbout={() => setCurrentView('about')}
-                        onBack={() => setCurrentView('topics')}
-                        onLogout={handleLogout}
-                        preloadedAudios={preloadedAudios}
-                        onUpdatePreloadedAudios={setPreloadedAudios}
-                        lang={lang}
-                        currentUser={currentUser}
-                      />
-                    : <Auth onLogin={handleLogin} onRegister={handleRegister} lang={lang} />;
-            case 'settings':
-                 return <Settings 
-                        settings={settings} 
-                        onSettingsChange={setSettings}
-                        onGoToAdmin={() => setCurrentView('admin')}
-                        onGoToAbout={() => setCurrentView('about')}
-                        onBack={() => setCurrentView('topics')}
-                        onLogout={handleLogout}
-                        preloadedAudios={preloadedAudios}
-                        onUpdatePreloadedAudios={setPreloadedAudios}
-                        lang={lang}
-                        currentUser={currentUser}
-                      />
+                return <Settings 
+                    settings={settings} 
+                    onSettingsChange={setSettings}
+                    onGoToAbout={() => setCurrentView('about')}
+                    onBack={() => setCurrentView('topics')}
+                    onLogout={handleLogout}
+                    preloadedAudios={preloadedAudios}
+                    onUpdatePreloadedAudios={setPreloadedAudios}
+                    lang={lang}
+                    currentUser={currentUser}
+                    onGoToAuth={() => setCurrentView('auth')}
+                    />;
+            case 'auth':
+                return (
+                    <div className="w-full max-w-2xl flex flex-col items-center">
+                        <div className="w-full flex justify-start mb-4">
+                             <button onClick={() => setCurrentView('profile')} className="p-2 rounded-full hover:bg-gray-200 transition-colors">
+                                <BackIcon />
+                            </button>
+                        </div>
+                        <Auth onLogin={handleLogin} onRegister={handleRegister} lang={lang} />
+                    </div>
+                );
             case 'about':
                 return <About onBack={() => setCurrentView('profile')} lang={lang}/>;
             case 'topics':
@@ -640,7 +688,15 @@ const App: React.FC = () => {
         }
     };
     
-    const showNav = currentView === 'topics' || currentView === 'history' || currentView === 'profile' || currentView === 'settings';
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                <LoadingSpinnerIcon className="w-12 h-12" />
+            </div>
+        );
+    }
+    
+    const showNav = ['topics', 'history', 'profile', 'auth', 'about'].includes(currentView);
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-8 sm:p-6" style={{ paddingBottom: showNav ? '80px' : 'auto' }}>
