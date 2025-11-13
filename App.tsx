@@ -95,22 +95,51 @@ const About: React.FC<{onBack: () => void, lang: 'de' | 'fr'}> = ({ onBack, lang
     </div>
 );
 
+// --- Profile Component ---
+interface ProfileProps {
+    currentUser: User | null;
+    onGoToAuth: () => void;
+    onLogout: () => void;
+    lang: 'de' | 'fr';
+}
+const Profile: React.FC<ProfileProps> = ({ currentUser, onGoToAuth, onLogout, lang }) => (
+    <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6 animate-fade-in">
+        <h2 className="text-2xl font-bold mb-6 text-center">{lang === 'de' ? 'Profil' : 'Profil'}</h2>
+        {currentUser ? (
+            <div className="space-y-6 text-center">
+                 <p className="text-gray-600">{lang === 'de' ? 'Angemeldet als:' : 'Connecté en tant que:'}</p>
+                 <p className="font-semibold text-lg">{currentUser.email}</p>
+                 <div className="border-t pt-6">
+                     <p className="text-gray-500 mb-4">{lang === 'de' ? 'Zukünftige Features wie Awards & Streaks werden hier erscheinen.' : 'Les futures fonctionnalités comme les récompenses et les séries apparaîtront ici.'}</p>
+                     <button onClick={onLogout} className="w-full max-w-xs mx-auto flex items-center justify-center gap-2 p-3 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
+                        <LogoutIcon /> {lang === 'de' ? 'Abmelden' : 'Se déconnecter'}
+                    </button>
+                 </div>
+            </div>
+        ) : (
+            <div className="text-center p-4 bg-teal-50 border border-teal-200 rounded-lg">
+                <h3 className="font-semibold text-teal-800">{lang === 'de' ? 'Konto anlegen für mehr Funktionen' : 'Créez un compte pour plus de fonctionnalités'}</h3>
+                <p className="text-sm text-teal-700 my-2">{lang === 'de' ? 'Speichern Sie Ihren Fortschritt und greifen Sie von jedem Gerät aus darauf zu.' : 'Sauvegardez vos progrès et accédez-y depuis n\'importe quel appareil.'}</p>
+                <button onClick={onGoToAuth} className="mt-2 bg-teal-500 hover:bg-teal-600 text-white font-bold py-2 px-4 rounded transition-colors text-sm">
+                    {lang === 'de' ? 'Anmelden / Registrieren' : 'Se connecter / S\'inscrire'}
+                </button>
+            </div>
+        )}
+    </div>
+);
+
 
 // --- Settings Component ---
 interface SettingsProps {
   settings: AppSettings;
   onSettingsChange: (settings: AppSettings) => void;
   onGoToAbout: () => void;
-  onBack: () => void;
-  onLogout: () => void;
   preloadedAudios: Record<string, AudioBuffer | null>;
   onUpdatePreloadedAudios: (audios: Record<string, AudioBuffer | null>) => void;
   lang: 'de' | 'fr';
-  currentUser: User | null;
-  onGoToAuth: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToAbout, onBack, onLogout, preloadedAudios, onUpdatePreloadedAudios, lang, currentUser, onGoToAuth }) => {
+const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToAbout, preloadedAudios, onUpdatePreloadedAudios, lang }) => {
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
 
@@ -203,17 +232,8 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToA
 
   return (
     <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6 animate-fade-in">
-      <div className="flex items-center mb-6">
-        <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 transition-colors mr-4">
-          <BackIcon />
-        </button>
-        <h2 className="text-2xl font-bold">{lang === 'de' ? 'Profil & Einstellungen' : 'Profil & Réglages'}</h2>
-      </div>
+      <h2 className="text-2xl font-bold mb-6 text-center">{lang === 'de' ? 'Einstellungen' : 'Réglages'}</h2>
       
-        {currentUser && (
-            <p className="text-center text-gray-500 mb-6">{lang === 'de' ? 'Angemeldet als' : 'Connecté en tant que'} {currentUser.email}</p>
-        )}
-
       <div className="space-y-6">
         <div>
           <h3 className="text-lg font-semibold mb-2 flex items-center gap-2">
@@ -280,12 +300,6 @@ const Settings: React.FC<SettingsProps> = ({ settings, onSettingsChange, onGoToA
          <button onClick={onGoToAbout} className="w-full p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
             {lang === 'de' ? 'Über die App' : 'À propos de l\'application'}
         </button>
-
-        {currentUser && (
-            <button onClick={onLogout} className="w-full flex items-center justify-center gap-2 p-3 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors">
-                <LogoutIcon /> {lang === 'de' ? 'Abmelden' : 'Se déconnecter'}
-            </button>
-        )}
       </div>
     </div>
   );
@@ -297,22 +311,16 @@ interface HistoryProps {
     sessions: ConversationSession[];
     onSelectSession: (session: ConversationSession) => void;
     onDeleteSession: (sessionId: string) => void;
-    onBack: () => void;
     lang: 'de' | 'fr';
     onPlayVocabulary: (word: string) => void;
     currentUser: User | null;
     onGoToAuth: () => void;
 }
 
-const History: React.FC<HistoryProps> = ({ sessions, onSelectSession, onDeleteSession, onBack, lang, onPlayVocabulary, currentUser, onGoToAuth }) => {
+const History: React.FC<HistoryProps> = ({ sessions, onSelectSession, onDeleteSession, lang, onPlayVocabulary, currentUser, onGoToAuth }) => {
     return (
         <div className="w-full max-w-2xl bg-white rounded-lg shadow-lg p-6 animate-fade-in">
-            <div className="flex items-center mb-6">
-                 <button onClick={onBack} className="p-2 rounded-full hover:bg-gray-200 transition-colors mr-4">
-                    <BackIcon />
-                </button>
-                <h2 className="text-2xl font-bold">{lang === 'de' ? 'Verlauf' : 'Historique'}</h2>
-            </div>
+            <h2 className="text-2xl font-bold mb-6 text-center">{lang === 'de' ? 'Verlauf' : 'Historique'}</h2>
 
             {!currentUser && (
                  <div className="text-center p-4 mb-6 bg-teal-50 border border-teal-200 rounded-lg">
@@ -388,7 +396,7 @@ const History: React.FC<HistoryProps> = ({ sessions, onSelectSession, onDeleteSe
 // --- BottomNav Component ---
 interface BottomNavProps {
     currentView: string;
-    onNavigate: (view: 'topics' | 'history' | 'profile') => void;
+    onNavigate: (view: 'topics' | 'history' | 'profile' | 'settings') => void;
     lang: 'de' | 'fr';
 }
 const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate, lang }) => (
@@ -409,16 +417,23 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, onNavigate, lang }) 
         </button>
         <button 
             onClick={() => onNavigate('profile')} 
-            className={`flex flex-col items-center justify-center w-full p-2 rounded-lg transition-colors ${['profile', 'auth', 'about'].includes(currentView) ? 'text-teal-600' : 'text-gray-500 hover:bg-gray-100'}`}
+            className={`flex flex-col items-center justify-center w-full p-2 rounded-lg transition-colors ${['profile', 'auth'].includes(currentView) ? 'text-teal-600' : 'text-gray-500 hover:bg-gray-100'}`}
         >
             <UserIcon />
             <span className="text-xs mt-1">{lang === 'de' ? 'Profil' : 'Profil'}</span>
+        </button>
+        <button 
+            onClick={() => onNavigate('settings')} 
+            className={`flex flex-col items-center justify-center w-full p-2 rounded-lg transition-colors ${['settings', 'about'].includes(currentView) ? 'text-teal-600' : 'text-gray-500 hover:bg-gray-100'}`}
+        >
+            <SettingsIcon />
+            <span className="text-xs mt-1">{lang === 'de' ? 'Einstellungen' : 'Réglages'}</span>
         </button>
     </div>
 );
 
 // --- Main App Component ---
-type View = 'topics' | 'conversation' | 'history' | 'profile' | 'about' | 'auth';
+type View = 'topics' | 'conversation' | 'history' | 'profile' | 'settings' | 'about' | 'auth';
 
 const App: React.FC = () => {
     const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -646,25 +661,27 @@ const App: React.FC = () => {
                     sessions={sessions} 
                     onSelectSession={session => {setSelectedSession(session); /* View to see details not implemented */}}
                     onDeleteSession={handleDeleteSession}
-                    onBack={() => setCurrentView('topics')}
                     lang={lang}
                     onPlayVocabulary={handlePlayVocabulary}
                     currentUser={currentUser}
                     onGoToAuth={() => setCurrentView('auth')}
                 />;
              case 'profile':
-                return <Settings 
-                    settings={settings} 
+                return <Profile
+                    currentUser={currentUser}
+                    onGoToAuth={() => setCurrentView('auth')}
+                    onLogout={handleLogout}
+                    lang={lang}
+                    />;
+            case 'settings':
+                return <Settings
+                    settings={settings}
                     onSettingsChange={setSettings}
                     onGoToAbout={() => setCurrentView('about')}
-                    onBack={() => setCurrentView('topics')}
-                    onLogout={handleLogout}
                     preloadedAudios={preloadedAudios}
                     onUpdatePreloadedAudios={setPreloadedAudios}
                     lang={lang}
-                    currentUser={currentUser}
-                    onGoToAuth={() => setCurrentView('auth')}
-                    />;
+                />;
             case 'auth':
                 return (
                     <div className="w-full max-w-2xl flex flex-col items-center">
@@ -677,7 +694,7 @@ const App: React.FC = () => {
                     </div>
                 );
             case 'about':
-                return <About onBack={() => setCurrentView('profile')} lang={lang}/>;
+                return <About onBack={() => setCurrentView('settings')} lang={lang}/>;
             case 'topics':
             default:
                 return <TopicSelection 
@@ -696,7 +713,7 @@ const App: React.FC = () => {
         );
     }
     
-    const showNav = ['topics', 'history', 'profile', 'auth', 'about'].includes(currentView);
+    const showNav = ['topics', 'history', 'profile', 'settings', 'auth', 'about'].includes(currentView);
 
     return (
         <div className="min-h-screen flex flex-col items-center justify-center p-4 pt-8 sm:p-6" style={{ paddingBottom: showNav ? '80px' : 'auto' }}>

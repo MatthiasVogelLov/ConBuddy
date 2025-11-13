@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveSession, LiveServerMessage, Modality, Blob } from '@google/genai';
 import type { Topic, TranscriptEntry } from '../types';
@@ -114,13 +115,10 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
   }, []);
 
 
-  const connectToLiveSession = useCallback(async (mediaStream: MediaStream) => {
+  const connectToLiveSession = useCallback(async (mediaStream: MediaStream, inputAudioCtx: AudioContext) => {
     setTranscriptHistory([]);
     hasSavedRef.current = false;
     mediaStreamRef.current = mediaStream;
-    
-    // @ts-ignore
-    inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
     
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
     
@@ -157,10 +155,10 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
             }, 1000);
           }
           
-          if (!inputAudioContextRef.current || !mediaStreamRef.current) return;
+          if (!mediaStreamRef.current) return;
           
-          mediaStreamSourceRef.current = inputAudioContextRef.current.createMediaStreamSource(mediaStreamRef.current);
-          scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
+          mediaStreamSourceRef.current = inputAudioCtx.createMediaStreamSource(mediaStreamRef.current);
+          scriptProcessorRef.current = inputAudioCtx.createScriptProcessor(4096, 1, 1);
           
           scriptProcessorRef.current.onaudioprocess = (audioProcessingEvent) => {
             const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
@@ -175,7 +173,7 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
             }
           };
           mediaStreamSourceRef.current.connect(scriptProcessorRef.current);
-          scriptProcessorRef.current.connect(inputAudioContextRef.current.destination);
+          scriptProcessorRef.current.connect(inputAudioCtx.destination);
         },
         onmessage: async (message: LiveServerMessage) => {
           if (message.serverContent?.outputTranscription) {
@@ -262,37 +260,50 @@ const Conversation: React.FC<ConversationProps> = ({ topic, onEndSession, onSave
       return;
     }
 
-    if (!outputAudioContextRef.current) {
-      try {
-        // @ts-ignore
-        outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
-      } catch (e) {
-        console.error("Fehler beim Erstellen des AudioContext:", e);
+    try {
+        if (!outputAudioContextRef.current) {
+            // @ts-ignore
+            outputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+        }
+        if (!inputAudioContextRef.current) {
+            // @ts-ignore
+            inputAudioContextRef.current = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+        }
+    } catch (e) {
+        console.error("Fehler beim Erstellen der AudioContexts:", e);
         setStatus('error');
         return;
-      }
     }
 
     const startSession = () => {
-      const audioCtx = outputAudioContextRef.current!;
-      const buffer = audioCtx.createBuffer(1, 1, 22050);
-      const source = audioCtx.createBufferSource();
+      // Play silent sound to unlock output context
+      const outCtx = outputAudioContextRef.current!;
+      const buffer = outCtx.createBuffer(1, 1, 22050);
+      const source = outCtx.createBufferSource();
       source.buffer = buffer;
-      source.connect(audioCtx.destination);
+      source.connect(outCtx.destination);
       source.start(0);
 
-      connectToLiveSession(mediaStream);
+      connectToLiveSession(mediaStream, inputAudioContextRef.current!);
     };
 
+    const resumePromises = [];
     if (outputAudioContextRef.current.state === 'suspended') {
-      outputAudioContextRef.current.resume()
-        .then(startSession)
-        .catch(err => {
-          console.error("Fehler beim Fortsetzen des AudioContext:", err);
-          setStatus('error');
-        });
+        resumePromises.push(outputAudioContextRef.current.resume());
+    }
+    if (inputAudioContextRef.current.state === 'suspended') {
+        resumePromises.push(inputAudioContextRef.current.resume());
+    }
+
+    if (resumePromises.length > 0) {
+        Promise.all(resumePromises)
+            .then(startSession)
+            .catch(err => {
+                console.error("Fehler beim Fortsetzen der AudioContexts:", err);
+                setStatus('error');
+            });
     } else {
-      startSession();
+        startSession();
     }
   };
 
